@@ -1,0 +1,154 @@
+name: Build LAVIBS ND for Windows
+
+on:
+  workflow_dispatch:
+
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+
+  build-windows:
+
+    runs-on: windows-latest
+
+    steps:
+
+      # --------------------------------------------------
+      # 1. Checkout desktop repository
+      # --------------------------------------------------
+
+      - name: Checkout desktop
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------
+      # 2. Checkout frontend
+      # --------------------------------------------------
+
+      - name: Checkout frontend
+        uses: actions/checkout@v4
+        with:
+          repository: Vibration-Control/lavibsnd-front-end
+          path: source/frontend
+
+      # --------------------------------------------------
+      # 3. Checkout backend
+      # --------------------------------------------------
+
+      - name: Checkout backend
+        uses: actions/checkout@v4
+        with:
+          repository: Vibration-Control/lavibsnd-back-end
+          path: source/backend
+          
+      # --------------------------------------------------
+      # 4. Setup Node
+      # --------------------------------------------------
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: source/frontend/package-lock.json
+
+      # --------------------------------------------------
+      # 5. Build React frontend
+      # --------------------------------------------------
+
+      - name: Install frontend dependencies
+        working-directory: source/frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: source/frontend
+        run: npm run build
+
+      # --------------------------------------------------
+      # 6. Setup Python
+      # --------------------------------------------------
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # --------------------------------------------------
+      # 7. Install backend dependencies
+      # --------------------------------------------------
+
+      - name: Install backend dependencies
+        working-directory: source/backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      # --------------------------------------------------
+      # 8. Build backend executable
+      # --------------------------------------------------
+
+      - name: Build backend executable
+        working-directory: source/backend
+        run: |
+          pyinstaller --clean LAVIBS_ND_Backend.spec
+
+      # --------------------------------------------------
+      # 9. Prepare Electron distribution
+      # --------------------------------------------------
+
+      - name: Prepare distribution folders
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/backend
+          New-Item -ItemType Directory -Force -Path dist/frontend
+
+          Copy-Item `
+            source/backend/dist/LAVIBS_ND_Backend.exe `
+            dist/backend/
+
+          Copy-Item `
+            source/frontend/build/* `
+            dist/frontend/ `
+            -Recurse
+
+      # --------------------------------------------------
+      # 10. Install Electron dependencies
+      # --------------------------------------------------
+
+      - name: Install Electron dependencies
+        working-directory: electron
+        run: npm install
+
+      # --------------------------------------------------
+      # 11. Package Windows application
+      # --------------------------------------------------
+
+      - name: Build Electron installer
+        working-directory: electron
+        run: npm run make
+
+      # --------------------------------------------------
+      # 12. Upload installer as GitHub artifact
+      # --------------------------------------------------
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: LAVIBS-ND-Windows
+          path: electron/out/make/squirrel.windows/x64/*.exe
+
+      # --------------------------------------------------
+      # 13. Create GitHub Release when tag is pushed
+      # --------------------------------------------------
+
+      - name: Upload installer to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            electron/out/make/squirrel.windows/x64/*.exe
