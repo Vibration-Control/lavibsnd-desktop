@@ -10,6 +10,7 @@ const path = require("path");
 let backendProcess = null;
 let mainWindow = null;
 
+
 function getBackendPath() {
     if (app.isPackaged) {
         return path.join(
@@ -27,6 +28,7 @@ function getBackendPath() {
         "LAVIBS_ND_Backend.exe"
     );
 }
+
 
 function getFrontendPath() {
     if (app.isPackaged) {
@@ -46,10 +48,13 @@ function getFrontendPath() {
     );
 }
 
+
 function startBackend() {
+
     const backendPath = getBackendPath();
 
-    console.log("Starting backend:", backendPath);
+    console.log("Starting backend:");
+    console.log(backendPath);
 
     backendProcess = spawn(
         backendPath,
@@ -65,27 +70,43 @@ function startBackend() {
     });
 
     backendProcess.stderr?.on("data", data => {
-        console.error(`Backend: ${data}`);
+        console.error(`Backend error: ${data}`);
     });
 
     backendProcess.on("error", error => {
-        console.error("Backend failed to start:", error);
+
+        console.error(
+            "Could not start backend:",
+            error
+        );
 
         dialog.showErrorBox(
             "LAVIBS ND",
-            "The LAVIBS ND backend could not be started."
+            `Could not start the backend.\n\n${error.message}`
         );
     });
 
-    backendProcess.on("exit", (code) => {
-        console.log(`Backend exited with code ${code}`);
+    backendProcess.on("exit", code => {
+
+        console.log(
+            `Backend exited with code ${code}`
+        );
     });
 }
 
+
 function createWindow() {
+
+    const frontendPath = getFrontendPath();
+
+    console.log("Loading frontend:");
+    console.log(frontendPath);
+
     mainWindow = new BrowserWindow({
+
         width: 1400,
         height: 900,
+
         minWidth: 1000,
         minHeight: 700,
 
@@ -95,31 +116,63 @@ function createWindow() {
         }
     });
 
-    mainWindow.loadFile(getFrontendPath());
+    mainWindow.loadFile(frontendPath);
+
+    mainWindow.webContents.on(
+        "did-fail-load",
+        (event, errorCode, errorDescription, validatedURL) => {
+
+            console.error(
+                "Frontend failed to load:",
+                errorCode,
+                errorDescription,
+                validatedURL
+            );
+
+            dialog.showErrorBox(
+                "LAVIBS ND",
+                `The frontend failed to load.\n\n${errorDescription}\n\n${validatedURL}`
+            );
+        }
+    );
+
+    mainWindow.webContents.on(
+        "console-message",
+        (event, level, message, line, sourceId) => {
+
+            console.log(
+                `Renderer console: ${message}`
+            );
+        }
+    );
 
     mainWindow.on("closed", () => {
         mainWindow = null;
     });
 }
 
+
 app.whenReady().then(() => {
 
     startBackend();
 
-    // Give Flask time to initialize.
     setTimeout(() => {
         createWindow();
     }, 2000);
 });
 
+
 app.on("before-quit", () => {
+
     if (backendProcess) {
         backendProcess.kill();
         backendProcess = null;
     }
 });
 
+
 app.on("window-all-closed", () => {
+
     if (process.platform !== "darwin") {
         app.quit();
     }
