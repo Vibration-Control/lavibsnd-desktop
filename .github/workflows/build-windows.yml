@@ -18,31 +18,21 @@ jobs:
 
     steps:
 
-      # --------------------------------------------------
-      # 1. Checkout desktop repository
-      # --------------------------------------------------
-
       - name: Checkout desktop
         uses: actions/checkout@v4
-
-      # --------------------------------------------------
-      # 2. Checkout frontend
-      # --------------------------------------------------
 
       - name: Checkout frontend
         uses: actions/checkout@v4
         with:
           repository: Vibration-Control/lavibsnd-front-end
+          ref: feature/neutralizer-optimization
           path: source/frontend
-
-      # --------------------------------------------------
-      # 3. Checkout backend
-      # --------------------------------------------------
 
       - name: Checkout backend
         uses: actions/checkout@v4
         with:
           repository: Vibration-Control/lavibsnd-back-end
+          ref: feature/neutralizer-optimization
           path: source/backend
           
       # --------------------------------------------------
